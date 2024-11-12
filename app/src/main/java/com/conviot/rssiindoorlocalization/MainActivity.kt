@@ -46,7 +46,7 @@ fun Menu(
         MenuData("데이터 수집", MainActivity::class.java),
         MenuData("데이터 열람", MainActivity::class.java),
         MenuData("테스트", MainActivity::class.java),
-        MenuData("설정", MainActivity::class.java)
+        MenuData("설정", SettingsActivity::class.java)
     )
 ) {
     Column(
