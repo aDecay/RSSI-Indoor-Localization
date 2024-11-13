@@ -43,7 +43,7 @@ data class MenuData(val text: String, val cls: Class<*>)
 fun Menu(
     modifier: Modifier = Modifier,
     menuData: List<MenuData> = listOf(
-        MenuData("데이터 수집", MainActivity::class.java),
+        MenuData("데이터 수집", DataCollectActivity::class.java),
         MenuData("데이터 열람", MainActivity::class.java),
         MenuData("테스트", MainActivity::class.java),
         MenuData("설정", SettingsActivity::class.java)
