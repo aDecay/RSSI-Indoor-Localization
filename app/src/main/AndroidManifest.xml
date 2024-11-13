@@ -25,6 +25,7 @@
         </activity>
         <activity android:name=".SettingsActivity"/>
         <activity android:name=".MapSettingActivity"/>
+        <activity android:name=".KeywordSettingActivity"/>
     </application>
 
 </manifest>

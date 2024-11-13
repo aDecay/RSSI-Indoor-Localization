@@ -41,7 +41,7 @@ class SettingsActivity : ComponentActivity() {
         modifier: Modifier = Modifier,
         menuData: List<MenuData> = listOf(
             MenuData("지도 설정", MapSettingActivity::class.java),
-            MenuData("키워드 설정", SettingsActivity::class.java)
+            MenuData("키워드 설정", KeywordSettingActivity::class.java)
         )
     ) {
         Column(
