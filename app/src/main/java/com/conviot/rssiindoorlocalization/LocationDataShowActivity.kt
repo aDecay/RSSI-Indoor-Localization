@@ -51,7 +51,8 @@ class LocationDataShowActivity : ComponentActivity() {
                 db = Room.databaseBuilder(
                     applicationContext,
                     RssiDatabase::class.java, "rssi_db"
-                ).build()
+                ).build(),
+                context = applicationContext
             )
         ).get(LocationDataShowViewModel::class.java),
         modifier: Modifier = Modifier
@@ -72,7 +73,7 @@ class LocationDataShowActivity : ComponentActivity() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(60.dp),
-                onClick = {}
+                onClick = { locationDataShowViewModel.onExportClick() }
             ) {
                 Text("내보내기")
             }
