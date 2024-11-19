@@ -1,6 +1,7 @@
 import com.google.protobuf.gradle.id
 
 plugins {
+    alias(libs.plugins.google.ksp)
     alias(libs.plugins.google.protobuf)
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -43,6 +44,11 @@ android {
 }
 
 dependencies {
+    implementation(libs.room.runtime)
+    ksp(libs.androidx.room.compiler)
+    annotationProcessor(libs.androidx.room.compiler)
+    implementation(libs.androidx.room.ktx)
+
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.datastore)
     implementation(libs.protobuf.javalite)

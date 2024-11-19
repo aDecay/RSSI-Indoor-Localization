@@ -2,40 +2,48 @@ package com.conviot.rssiindoorlocalization
 
 import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.ManagedActivityResultLauncher
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
+import androidx.compose.ui.window.Dialog
+import androidx.datastore.core.DataStore
+import androidx.datastore.dataStore
 import androidx.lifecycle.ViewModelProvider
 import coil3.compose.AsyncImage
-import com.conviot.rssiindoorlocalization.ui.theme.DataCollectViewModel
+import com.conviot.rssiindoorlocalization.data.UserPreferencesSerializer
+import com.conviot.rssiindoorlocalization.datastore.UserPreferences
 import com.conviot.rssiindoorlocalization.ui.theme.RSSIIndoorLocalizationTheme
 import java.io.File
 
@@ -87,7 +95,8 @@ class DataCollectActivity : ComponentActivity() {
         dataCollectViewModel: DataCollectViewModel = ViewModelProvider(
             this,
             DataCollectViewModelFactory(
-                applicationContext
+                applicationContext,
+                userPreferencesStore
             )
         ).get(DataCollectViewModel::class.java),
         modifier: Modifier = Modifier
@@ -101,6 +110,15 @@ class DataCollectActivity : ComponentActivity() {
             null
         }
 
+        if (dataCollectViewModel.dialogState) {
+            PlaceLabelDialog(
+                placeLabel = dataCollectViewModel.placeLabel,
+                onPlaceLabelChanged = { dataCollectViewModel.onPlaceLabelChanged(it) },
+                onDismissRequest = { dataCollectViewModel.onDialogDismiss() },
+                onConfirmation = { dataCollectViewModel.onDialogConfirm() }
+            )
+        }
+
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top,
@@ -110,7 +128,15 @@ class DataCollectActivity : ComponentActivity() {
                 model = imageUri,
                 contentDescription = null,
                 contentScale = ContentScale.FillWidth,
-                modifier = modifier.fillMaxWidth()
+                modifier = modifier
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectTapGestures { offset ->
+                            dataCollectViewModel.mapTapped(offset)
+                        }
+                    }.onGloballyPositioned { coordinate ->
+                        dataCollectViewModel.setImageSize(coordinate)
+                    }
             )
             LazyColumn {
                 items(dataCollectViewModel.wifiList) { wifiInfo ->
@@ -137,6 +163,51 @@ class DataCollectActivity : ComponentActivity() {
     }
 
     @Composable
+    fun PlaceLabelDialog(
+        placeLabel: String,
+        onPlaceLabelChanged: (String) -> Unit,
+        onDismissRequest:  () -> Unit,
+        onConfirmation: () -> Unit
+    ) {
+        Dialog(onDismissRequest = { onDismissRequest() }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                TextField(
+                    value = placeLabel,
+                    onValueChange = onPlaceLabelChanged,
+                    placeholder = {
+                        Text("장소 이름")
+                    },
+                    modifier = Modifier.padding(16.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    TextButton(
+                        onClick = { onDismissRequest() },
+                        modifier = Modifier.padding(8.dp),
+                    ) {
+                        Text("취소")
+                    }
+                    TextButton(
+                        onClick = { onConfirmation() },
+                        modifier = Modifier.padding(8.dp),
+                    ) {
+                        Text("확인")
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
     @Preview(showBackground = true)
     fun DataCollectorPreview() {
         RSSIIndoorLocalizationTheme {
@@ -150,5 +221,16 @@ class DataCollectActivity : ComponentActivity() {
         RSSIIndoorLocalizationTheme {
             WifiItem(WifiInfo("ssid", "bssid", 10))
         }
+    }
+
+    @Composable
+    @Preview(showBackground = true)
+    fun PlaceLabelDialogPreview() {
+        PlaceLabelDialog(
+            "장소",
+            onPlaceLabelChanged = {},
+            onDismissRequest = {},
+            onConfirmation = {}
+        )
     }
 }
