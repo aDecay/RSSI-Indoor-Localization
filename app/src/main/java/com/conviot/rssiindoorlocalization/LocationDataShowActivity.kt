@@ -61,7 +61,7 @@ class LocationDataShowActivity : ComponentActivity() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(60.dp),
-                onClick = { }
+                onClick = { locationDataShowViewModel.onDeleteAllClick() }
             ) {
                 Text("전체 삭제")
             }

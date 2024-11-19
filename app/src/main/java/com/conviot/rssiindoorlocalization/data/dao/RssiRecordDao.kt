@@ -23,4 +23,7 @@ interface RssiRecordDao {
 
     @Delete
     suspend fun delete(record: RssiRecord)
+
+    @Query("DELETE FROM rssi_record")
+    suspend fun deleteAll()
 }
