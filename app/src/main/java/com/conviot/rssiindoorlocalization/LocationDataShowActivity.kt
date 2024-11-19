@@ -22,6 +22,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModelProvider
+import androidx.room.Room
+import com.conviot.rssiindoorlocalization.data.RssiDatabase
 import com.conviot.rssiindoorlocalization.data.entity.Location
 import com.conviot.rssiindoorlocalization.ui.theme.RSSIIndoorLocalizationTheme
 import java.text.SimpleDateFormat
@@ -41,18 +44,24 @@ class LocationDataShowActivity : ComponentActivity() {
     }
 
     @Composable
-    fun LocationDataViewer(modifier: Modifier = Modifier) {
-        val locationList = listOf(
-            Location(1, 0, "장소1", 0.5f, 0.5f, 1),
-            Location(2, 0, "장소2", 1.0f, 1.0f, 2)
-        )
-
+    fun LocationDataViewer(
+        locationDataShowViewModel: LocationDataShowViewModel = ViewModelProvider(
+            this,
+            LocationDataShowViewModelFactory(
+                db = Room.databaseBuilder(
+                    applicationContext,
+                    RssiDatabase::class.java, "rssi_db"
+                ).build()
+            )
+        ).get(LocationDataShowViewModel::class.java),
+        modifier: Modifier = Modifier
+    ) {
         Column {
             Button(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(60.dp),
-                onClick = {}
+                onClick = { }
             ) {
                 Text("전체 삭제")
             }
@@ -69,7 +78,7 @@ class LocationDataShowActivity : ComponentActivity() {
             }
 
             LazyColumn {
-                items(locationList) { location ->
+                items(locationDataShowViewModel.locationList) { location ->
                     LocationItem(location)
                 }
             }
