@@ -77,7 +77,7 @@ class DataCollectViewModel(
 
             scanWifi()
 
-            handler.postDelayed(this, 5000) // 100 쉬고 동작 -> 100 사이에 화면 처리
+            handler.postDelayed(this, 3000)
         }
     }
 
