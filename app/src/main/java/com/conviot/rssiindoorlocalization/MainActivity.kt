@@ -45,7 +45,7 @@ fun Menu(
     menuData: List<MenuData> = listOf(
         MenuData("데이터 수집", DataCollectActivity::class.java),
         MenuData("데이터 열람", LocationDataShowActivity::class.java),
-        MenuData("테스트", MainActivity::class.java),
+        MenuData("테스트", TestActivity::class.java),
         MenuData("설정", SettingsActivity::class.java)
     )
 ) {

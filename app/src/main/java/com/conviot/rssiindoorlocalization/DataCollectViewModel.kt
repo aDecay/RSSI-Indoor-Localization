@@ -72,6 +72,13 @@ class DataCollectViewModel(
     val handler = Handler(Looper.myLooper()!!)
 
     val thread1 = object : Thread() {
+        /*
+        데이터 수집을 시작하면 와이파이 데이터를 계속 스캔하며,
+        스캔된 데이터를 scanSuccess() 메소드에서 wifiList (public) 변수로 계속 설정하고,
+        onDialogConfirm() 메소드에서는 지도 클릭 후 "확인" 버튼을 눌렀을 때
+        location 데이터베이스에 아이디, 데이터 수집 아이디, 위치 및 시간을,
+        rssi_record 데이터베이스에 데이터 수집 아이디와 SSID, BSSID, RSSI 값을 추가함
+        */
         override fun run() {
             super.run()
 
