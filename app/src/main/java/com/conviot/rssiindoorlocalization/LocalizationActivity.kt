@@ -5,6 +5,7 @@ import android.Manifest
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
+import android.provider.ContactsContract.Data
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -256,42 +257,33 @@ class LocalizationActivity : ComponentActivity() {
                 // 모델 로드
                 val interpreter = loadModel(this@LocalizationActivity)
 
-                // localization 결과를 저장할 변수
-                val resultX: Float
-                val resultY: Float
+                // localization에 사용할 WifiList 설정
+                val wifiList: SnapshotStateList<DataCollectActivity.WifiInfo>
 
+                // 테스트 여부에 따라 WifiList를 다르게 설정
                 if (isTest) {
-                    // 모델 실행 (테스트 전용, 하나의 record_id에 대한 데이터 사용)
-                    val _tempWifiList = parseCsvToWifiInfoList(this@LocalizationActivity)
-                    val tempWifiList = _tempWifiList.toMutableStateList()
-
-                    val (x, y) = runModel(
-                        this@LocalizationActivity,
-                        interpreter,
-                        tempWifiList
-                    )
-                    resultX = x
-                    resultY = y
+                    wifiList =
+                        parseCsvToWifiInfoList(this@LocalizationActivity).toMutableStateList()
                 } else {
-                    // 모델 실행 (실제로 측정된 WifiInfo 리스트 사용)
-                    val (x, y) = runModel(
-                        this@LocalizationActivity,
-                        interpreter,
-                        dataCollectViewModel.wifiList
-                    )
-                    resultX = x
-                    resultY = y
+                    wifiList = dataCollectViewModel.wifiList
                 }
+
+                // 모델 실행
+                val (x, y) = runModel(
+                    this@LocalizationActivity,
+                    interpreter,
+                    wifiList
+                )
 
                 // 모델 종료
                 interpreter.close()
 
                 // 사용자 위치 설정
-                localizationViewModel.updateLocalization(resultX, resultY)
+                localizationViewModel.updateLocalization(x, y)
 
                 Log.d(
                     "TestLocalization",
-                    "X: ${resultX}, Y: ${resultY}"
+                    "X: ${x}, Y: ${y}"
                 )
             } catch (e: Exception) {
                 Log.e("TestLocalization", "Error during model execution: ${e.message}")
