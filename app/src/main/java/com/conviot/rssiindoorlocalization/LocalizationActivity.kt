@@ -354,7 +354,7 @@ class LocalizationActivity : ComponentActivity() {
                 .statusBarsPadding()
         ) {
             // 지도 좌표 변환
-            val pointX = localizationViewModel.localizationX.value * dataCollectViewModel.imageWidth
+            val pointX = localizationViewModel.localizationX.value * dataCollectViewModel.imageWidth * (3962f/9228)
             val pointY =
                 localizationViewModel.localizationY.value * dataCollectViewModel.imageHeight
 
