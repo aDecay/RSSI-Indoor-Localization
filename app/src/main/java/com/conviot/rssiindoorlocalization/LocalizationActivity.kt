@@ -5,7 +5,6 @@ import android.Manifest
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
-import android.provider.ContactsContract.Data
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,12 +18,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -35,7 +32,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
 import coil3.compose.AsyncImage
 import com.conviot.rssiindoorlocalization.ui.theme.RSSIIndoorLocalizationTheme
@@ -53,7 +52,6 @@ import java.io.InputStreamReader
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Arrays
-import kotlin.random.Random
 
 /** RSSI 데이터를 통해 사용자의 위치를 확인하는 Activity */
 class LocalizationActivity : ComponentActivity() {
@@ -65,7 +63,7 @@ class LocalizationActivity : ComponentActivity() {
     private lateinit var localizationViewModel: LocalizationViewModel
 
     // Localization 설정
-    private var isTest: Boolean = false // 테스트 여부 (true면, 특정 record_id 기준으로 실행)
+    private var isTest: Boolean = true // 테스트 여부 (true면, 특정 record_id 기준으로 실행)
     private var localiationDelayMs: Long = 3000 // localization 간격 (ms)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -161,8 +159,8 @@ class LocalizationActivity : ComponentActivity() {
 
     /** 하나의 record_id만 들어있도록 가공된 CSV 파일에서, WifiInfo 리스트를 반환 */
     fun parseCsvToWifiInfoList(context: Context): MutableList<DataCollectActivity.WifiInfo> {
-        // 파일 및 Context
-        val csvFileName = "rssi_single_record_1.csv"
+        // 파일 및 Context (assets 폴더의 rssi_single_record_*.csv 파일 참조)
+        val csvFileName = "rssi_single_record_689.csv"
         val assetManager = context.assets
 
         // record_id 하나의 Wifi 리스트
@@ -281,9 +279,12 @@ class LocalizationActivity : ComponentActivity() {
                 // 사용자 위치 설정
                 localizationViewModel.updateLocalization(x, y)
 
+                // 랜드마크 확인
+                localizationViewModel.checkLandmark()
+
                 Log.d(
                     "TestLocalization",
-                    "X: ${x}, Y: ${y}"
+                    "X: ${x}, Y: ${y}, Landmark Name: ${localizationViewModel.currentLandmark.value?.name}"
                 )
             } catch (e: Exception) {
                 Log.e("TestLocalization", "Error during model execution: ${e.message}")
@@ -324,24 +325,22 @@ class LocalizationActivity : ComponentActivity() {
                 LocalizationTestUserPoint()
             }
         }
-        /*
-        Column(
-            verticalArrangement = Arrangement.Bottom,
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 80.dp)
-        ) {
-            // 테스트 버튼 표시
-            LocalizationTestButton(
-                "테스트",
-                {
-                    testLocalization()
-                },
-                Modifier.width(200.dp)
-            )
+        if (localizationViewModel.currentLandmark.value != null) {
+            Column(
+                verticalArrangement = Arrangement.Bottom,
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 60.dp)
+            ) {
+                // 랜드마크 이름 표시
+                Text(
+                    localizationViewModel.currentLandmark.value!!.name,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
-        */
     }
 
     /** Localization 후 사용자의 위치를 나타냄 */
@@ -354,7 +353,8 @@ class LocalizationActivity : ComponentActivity() {
                 .statusBarsPadding()
         ) {
             // 지도 좌표 변환
-            val pointX = localizationViewModel.localizationX.value * dataCollectViewModel.imageWidth * (3962f/9228)
+            val pointX =
+                localizationViewModel.localizationX.value * dataCollectViewModel.imageWidth * (3962f / 9228)
             val pointY =
                 localizationViewModel.localizationY.value * dataCollectViewModel.imageHeight
 
