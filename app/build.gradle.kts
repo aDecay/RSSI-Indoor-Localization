@@ -75,6 +75,7 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     implementation(libs.tensorflow.lite)
+    implementation(libs.tensorflow.lite.select.tf.ops)
 }
 
 protobuf {

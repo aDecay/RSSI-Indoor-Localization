@@ -45,7 +45,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.tensorflow.lite.Delegate
 import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.flex.FlexDelegate
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -65,6 +67,8 @@ class LocalizationActivity : ComponentActivity() {
     // Localization 설정
     private var isTest: Boolean = false // 테스트 여부 (true면, 특정 record_id 기준으로 실행)
     private var localiationDelayMs: Long = 3000 // localization 간격 (ms)
+
+    private var wifiListTime = mutableListOf<FloatArray>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -198,7 +202,8 @@ class LocalizationActivity : ComponentActivity() {
     /** TFLite 모델 로드 후 반환 */
     suspend fun loadModel(context: Context): Interpreter = withContext(Dispatchers.IO) {
         // 파일 및 Context
-        val modelPath = "model.tflite"
+        // val modelPath = "model.tflite"
+        val modelPath = "lstm.tflite"
         val assetManager = context.assets
 
         // 모델 파일 읽기
@@ -213,8 +218,15 @@ class LocalizationActivity : ComponentActivity() {
             rewind() // ByteBuffer의 위치를 0으로 초기화
         }
 
+        // FlexDelegate를 사용하여 모델 로드
+        val options = Interpreter.Options()
+
+// FlexDelegate 추가
+        val delegate: Delegate = FlexDelegate()
+        options.addDelegate(delegate)
+
         // Interpreter 생성
-        Interpreter(byteBuffer)
+        Interpreter(byteBuffer, options)
     }
 
     /** TFLite 모델 실행 */
@@ -238,14 +250,35 @@ class LocalizationActivity : ComponentActivity() {
         Log.d("RunModel_Input", Arrays.toString(inputArray))
 
         // 출력 크기 설정 (예: [[x, y]])
-        val outputArray = Array(1) { FloatArray(2) }
+        //val outputArray = Array(1) { FloatArray(2) }
 
         // 모델 실행
-        interpreter.run(inputArray, outputArray)
+        //interpreter.run(inputArray, outputArray)
 
         // 결과 반환
-        Log.d("RunModel_Output", "X: ${outputArray[0][0]}, Y: ${outputArray[0][1]}")
-        Pair(outputArray[0][0], outputArray[0][1])
+        //Log.d("RunModel_Output", "X: ${outputArray[0][0]}, Y: ${outputArray[0][1]}")
+        //Pair(outputArray[0][0], outputArray[0][1])
+
+        val size = wifiListTime.size
+        if (size == 0 || !wifiListTime[size - 1].contentEquals(inputArray)) {
+            wifiListTime.add(inputArray.copyOf())
+            if (size >= 3)
+                wifiListTime.removeAt(0)
+        }
+
+        // 출력 크기 설정 (예: [[x, y]])
+        val outputArray = Array(1) { FloatArray(2) }
+
+        if (wifiListTime.size == 3) {
+            // 모델 실행
+            interpreter.run(Array(1) {wifiListTime.toTypedArray()}, outputArray)
+
+            // 결과 반환
+            Log.d("RunModel_Output", "X: ${outputArray[0][0]}, Y: ${outputArray[0][1]}")
+            Pair(outputArray[0][0], outputArray[0][1])
+        } else {
+            Pair(-1.0f, -1.0f)
+        }
     }
 
     /** RSSI 데이터를 통해 사용자의 위치를 확인 */

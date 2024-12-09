@@ -8,6 +8,8 @@ import kotlin.math.sqrt
 
 /** Localization 로직에서 변수 저장을 담당하는 ViewModel */
 class LocalizationViewModel : ViewModel() {
+
+
     // X
     private val _localizationX = mutableFloatStateOf(0f)
     val localizationX: State<Float> get() = _localizationX
