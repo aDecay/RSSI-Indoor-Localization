@@ -63,7 +63,7 @@ class LocalizationActivity : ComponentActivity() {
     private lateinit var localizationViewModel: LocalizationViewModel
 
     // Localization 설정
-    private var isTest: Boolean = true // 테스트 여부 (true면, 특정 record_id 기준으로 실행)
+    private var isTest: Boolean = false // 테스트 여부 (true면, 특정 record_id 기준으로 실행)
     private var localiationDelayMs: Long = 3000 // localization 간격 (ms)
 
     override fun onCreate(savedInstanceState: Bundle?) {

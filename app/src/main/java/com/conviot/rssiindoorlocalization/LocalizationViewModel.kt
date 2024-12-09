@@ -63,7 +63,7 @@ class LocalizationViewModel : ViewModel() {
 
         for (landmark: Landmark in _landmarkList) {
             val distance = sqrt(
-                (landmark.x - localizationX.value).pow(2) + (landmark.y - localizationY.value).pow(2)
+                (landmark.x - localizationX.value * (3962f / 9228)).pow(2) + (landmark.y - localizationY.value).pow(2)
             )
 
             if (distance <= landmark.radius) {
