@@ -84,6 +84,7 @@ dependencies {
         exclude("org.apache.maven.surefire", "common-java")
         exclude("org.apache.maven.surefire", "surefire-api")
     }
+    implementation(libs.google.gson)
 }
 
 protobuf {
