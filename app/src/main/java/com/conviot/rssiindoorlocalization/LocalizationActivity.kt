@@ -69,15 +69,25 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import android.provider.MediaStore
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.datastore.core.DataStore
+import androidx.datastore.dataStore
+import androidx.lifecycle.lifecycleScope
 import coil3.compose.AsyncImage
+import com.conviot.rssiindoorlocalization.data.UserPreferencesSerializer
+import com.conviot.rssiindoorlocalization.datastore.UserPreferences
 import com.conviot.rssiindoorlocalization.manager.Vector3D
 import com.conviot.rssiindoorlocalization.manager.computeStepTimeStamp
 import com.conviot.rssiindoorlocalization.manager.estimateTurningAngle
+import com.conviot.rssiindoorlocalization.manager.sendUdpMessage
 import com.conviot.rssiindoorlocalization.ui.theme.RSSIIndoorLocalizationTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -89,17 +99,22 @@ import java.io.File
 import java.io.FileWriter
 import java.io.IOException
 import java.io.InputStreamReader
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Arrays
 import kotlin.math.cos
 import kotlin.math.sin
 
+
 /** RSSI 데이터를 통해 사용자의 위치를 확인하는 Activity */
 class LocalizationActivity : ComponentActivity(), SensorEventListener {
+    private val dataStore by lazy { applicationContext.userPreferencesStore }
+
     // Thread
     private var localizationJob: Job? = null
-    private var deadReckoningJob: Job? = null
 
     // ViewModel
     private lateinit var dataCollectViewModel: DataCollectViewModel
@@ -108,7 +123,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
     // Localization 설정
     private var isTest: Boolean = false // 테스트 여부 (true면, 특정 record_id 기준으로 실행)
     private val localizationDelayMs: Long = 3000 // localization 간격 (ms)
-    private val deadReckoningDelayMs: Long = 100
+    private val deadReckoningDelayMs: Long = 1000
 
     // Sensor
     private lateinit var sensorManager: SensorManager
@@ -116,10 +131,6 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
     private lateinit var gyroSensor: Sensor
     private lateinit var magSensor: Sensor
     private val samplingPeriodUs = 10000
-
-    private var accelerationThreshold = 0.1f
-    private var weinbergGain = 0.65f
-    private var frequency = 100.0f
 
     //private var wifiListTime = mutableListOf<FloatArray>()
 
@@ -211,40 +222,61 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
 //                delay(localizationDelayMs)
 //            }
 //        }
-        deadReckoningJob = CoroutineScope(Dispatchers.Main).launch {
+
+        lifecycleScope.launch {
+            val serverAddr = dataStore.data.map { ref ->
+                ref.server
+            }.first()
+            val serverPort = dataStore.data.map { ref ->
+                ref.port
+            }.first()
+
             while (isActive) {
-                // Dead Reckoning 실행
-                val steps = computeStepTimeStamp(localizationViewModel.accData, accelerationThreshold, weinbergGain, frequency)
+                withContext(Dispatchers.IO) {
+                    val accData = localizationViewModel.accData
+                    val gyroData = localizationViewModel.gyroData
+                    val magData = localizationViewModel.magData
 
-                if (steps.isNotEmpty()) {
-                    // 사용자의 위치를 업데이트
-                    for (step in steps) {
-                        localizationViewModel.addOrientation(
-                            -estimateTurningAngle(localizationViewModel.gyroData.subList(step.start, step.end), frequency)
-                        )
+                    // CSV
+                    val sb = StringBuilder()
+                    sb.append("acc_x,acc_y,acc_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z\n")
 
-                        val dx = step.stepLength / 0.6f / 153.0f * cos(localizationViewModel.orientation.value.toDouble())
-                        val dy = step.stepLength / 0.6f / 65.0f * sin(localizationViewModel.orientation.value.toDouble())
+                    val minSize = minOf(accData.size, gyroData.size, magData.size)
+                    for (i in 0 until minSize) {
+                        val acc = accData[i]
+                        val gyro = gyroData[i]
+                        val mag = magData[i]
 
-                        localizationViewModel.addLocalization(
-                            dx.toFloat(),
-                            dy.toFloat()
-                        )
+                        sb.append("${acc.x},${acc.y},${acc.z},")
+                        sb.append("${gyro.x},${gyro.y},${gyro.z},")
+                        sb.append("${mag.x},${mag.y},${mag.z}\n")
                     }
 
-                    localizationViewModel.accData.clear()
-                    localizationViewModel.gyroData.clear()
-                    localizationViewModel.magData.clear()
+                    // Transmit & Update
+                    val result = sendUdpMessage(sb.toString(), serverAddr, serverPort.toInt())
+                    if (result.isStepped) {
+                        withContext(Dispatchers.Main) {
+                            localizationViewModel.updateLocalization(
+                                result.x,
+                                result.y,
+                                result.radian
+                            )
+                            localizationViewModel.accData.clear()
+                            localizationViewModel.gyroData.clear()
+                            localizationViewModel.magData.clear()
 
-                    Log.d(
-                        "TestLocalization",
-                        "X: ${localizationViewModel.localizationX}, Y: ${localizationViewModel.localizationY}"
-                    )
-                } else {
-                    // No Step Dectected
+                            Log.d(
+                                "TestLocalization",
+                                "X: ${localizationViewModel.localizationX}, Y: ${localizationViewModel.localizationY}"
+                            )
+                        }
+                    } else {
+                        // No Step Dectected
+                    }
+
+                    // Delay
+                    delay(deadReckoningDelayMs)
                 }
-
-                delay(deadReckoningDelayMs)
             }
         }
     }
@@ -263,7 +295,6 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
 
         // Activity가 Stop되면, Coroutine 종료
         localizationJob?.cancel()
-        deadReckoningJob?.cancel()
 
         // 파일 경로 및 이름 설정
         val fileName = "localization_data.csv"
@@ -522,6 +553,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                 x = offsetX,
                 y = 0.0f
             )
+            scale = 1.0f
         }
 
         Box(

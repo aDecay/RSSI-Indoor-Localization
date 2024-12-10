@@ -21,6 +21,7 @@ constraintlayout = "2.1.4"
 tensorflowLite = "2.16.1"
 jdsp = "3.1.0"
 tensorflowLiteSelectTfOps = "2.10.0"
+gson = "2.11.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -51,6 +52,7 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 tensorflow-lite = { module = "org.tensorflow:tensorflow-lite", version.ref = "tensorflowLite" }
 signal-jdsp = { group = "com.github.psambit9791", name = "jdsp", version.ref = "jdsp"}
 tensorflow-lite-select-tf-ops = { module = "org.tensorflow:tensorflow-lite-select-tf-ops", version.ref = "tensorflowLiteSelectTfOps" }
+google-gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 
 [plugins]
 google-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

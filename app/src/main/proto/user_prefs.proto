@@ -5,4 +5,6 @@ option java_multiple_files = true;
 
 message UserPreferences {
   repeated string keywords = 1;
+  string server = 2;
+  string port = 3;
 }

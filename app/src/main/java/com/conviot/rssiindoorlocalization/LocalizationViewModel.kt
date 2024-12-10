@@ -73,6 +73,11 @@ class LocalizationViewModel : ViewModel() {
         _localizationTested.value = true
     }
 
+    fun updateLocalization(x: Float, y: Float, orientation: Float) {
+        updateLocalization(x, y)
+        _orientation.floatValue = orientation % (2 * Math.PI.toFloat())
+    }
+
     fun addLocalization(x: Float, y: Float) {
         _localizationX.floatValue = (_localizationX.floatValue + x).coerceIn(0.0f, 1.0f)
         _localizationY.floatValue = (_localizationY.floatValue + y).coerceIn(0.0f, 1.0f)
