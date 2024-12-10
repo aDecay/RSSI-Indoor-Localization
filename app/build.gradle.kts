@@ -14,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = "com.conviot.rssiindoorlocalization"
-        minSdk = 33
+        minSdk = 31
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -40,6 +40,10 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    packaging {
+        // Exclude these files because they conflict with those imported from the jDSP package
+        resources.excludes.add("META-INF/*")
     }
 }
 
@@ -75,6 +79,10 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     implementation(libs.tensorflow.lite)
+    implementation(libs.signal.jdsp) {
+        exclude("org.apache.maven.surefire", "common-java")
+        exclude("org.apache.maven.surefire", "surefire-api")
+    }
 }
 
 protobuf {

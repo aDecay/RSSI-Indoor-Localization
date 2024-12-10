@@ -3,22 +3,35 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
+import com.conviot.rssiindoorlocalization.manager.Vector3D
 import kotlin.math.pow
 import kotlin.math.sqrt
 
 /** Localization 로직에서 변수 저장을 담당하는 ViewModel */
 class LocalizationViewModel : ViewModel() {
     // X
-    private val _localizationX = mutableFloatStateOf(0f)
+    private val _localizationX = mutableFloatStateOf(0.25f)
     val localizationX: State<Float> get() = _localizationX
 
     // Y
-    private val _localizationY = mutableFloatStateOf(0f)
+    private val _localizationY = mutableFloatStateOf(0.25f)
     val localizationY: State<Float> get() = _localizationY
 
+    // Orientation (Radian)
+    private var _orientation = mutableFloatStateOf(0f)
+    val orientation: State<Float> get() = _orientation
+
     // Localization 여부
-    private val _localizationTested = mutableStateOf(false)
+    private val _localizationTested = mutableStateOf(true)
     val localizationTested: State<Boolean> get() = _localizationTested
+
+    // 화면 고정 여부
+    private val _isFollowing = mutableStateOf(true)
+    val isFollowing: State<Boolean> get() = _isFollowing
+
+    fun setIsFollowing(isFollowing: Boolean) {
+        _isFollowing.value = isFollowing
+    }
 
     // 랜드마크 정보
     class Landmark(var x: Float, var y: Float, var radius: Float, var name: String) {}
@@ -40,11 +53,21 @@ class LocalizationViewModel : ViewModel() {
     private val _currentLandmark = mutableStateOf<Landmark?>(null)
     val currentLandmark: State<Landmark?> get() = _currentLandmark
 
+    // IMU Raw Data
+    val accData = mutableListOf<Vector3D>()
+    val gyroData = mutableListOf<Vector3D>()
+    val magData = mutableListOf<Vector3D>()
+
     /** 사용자의 위치를 업데이트 */
     fun updateLocalization(x: Float, y: Float) {
-        _localizationX.floatValue = x
-        _localizationY.floatValue = y
+        _localizationX.floatValue = x.coerceIn(0.0f, 1.0f)
+        _localizationY.floatValue = y.coerceIn(0.0f, 1.0f)
         _localizationTested.value = true
+    }
+
+    fun addLocalization(x: Float, y: Float) {
+        _localizationX.floatValue = (_localizationX.floatValue + x).coerceIn(0.0f, 1.0f)
+        _localizationY.floatValue = (_localizationY.floatValue + y).coerceIn(0.0f, 1.0f)
     }
 
     /** 사용자의 위치를 0으로 초기화 */
@@ -70,5 +93,10 @@ class LocalizationViewModel : ViewModel() {
                 _currentLandmark.value = landmark
             }
         }
+    }
+
+    fun addOrientation(radian: Float) {
+        _orientation.value += radian
+        _orientation.value %= 2 * Math.PI.toFloat()
     }
 }
