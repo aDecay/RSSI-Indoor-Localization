@@ -70,11 +70,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import android.provider.MediaStore
 import coil3.compose.AsyncImage
-import com.conviot.rssiindoorlocalization.manager.NetworkManager
 import com.conviot.rssiindoorlocalization.manager.Vector3D
 import com.conviot.rssiindoorlocalization.manager.computeStepTimeStamp
 import com.conviot.rssiindoorlocalization.manager.estimateTurningAngle
-import com.conviot.rssiindoorlocalization.manager.sendUdpMessage
 import com.conviot.rssiindoorlocalization.ui.theme.RSSIIndoorLocalizationTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -123,7 +121,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
     private var weinbergGain = 0.65f
     private var frequency = 100.0f
 
-    private var wifiListTime = mutableListOf<FloatArray>()
+    //private var wifiListTime = mutableListOf<FloatArray>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -350,7 +348,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
     suspend fun loadModel(context: Context): Interpreter = withContext(Dispatchers.IO) {
         // 파일 및 Context
         // val modelPath = "model.tflite"
-        val modelPath = "lstm.tflite"
+        val modelPath = "model.tflite"
         val assetManager = context.assets
 
         // 모델 파일 읽기
@@ -397,15 +395,16 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
         Log.d("RunModel_Input", Arrays.toString(inputArray))
 
         // 출력 크기 설정 (예: [[x, y]])
-        //val outputArray = Array(1) { FloatArray(2) }
+        val outputArray = Array(1) { FloatArray(2) }
 
         // 모델 실행
-        //interpreter.run(inputArray, outputArray)
+        interpreter.run(inputArray, outputArray)
 
         // 결과 반환
-        //Log.d("RunModel_Output", "X: ${outputArray[0][0]}, Y: ${outputArray[0][1]}")
-        //Pair(outputArray[0][0], outputArray[0][1])
+        Log.d("RunModel_Output", "X: ${outputArray[0][0]}, Y: ${outputArray[0][1]}")
+        Pair(outputArray[0][0], outputArray[0][1])
 
+        /*
         val size = wifiListTime.size
         if (size == 0 || !wifiListTime[size - 1].contentEquals(inputArray)) {
             wifiListTime.add(inputArray.copyOf())
@@ -426,6 +425,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
         } else {
             Pair(-1.0f, -1.0f)
         }
+         */
     }
 
     /** RSSI 데이터를 통해 사용자의 위치를 확인 */
