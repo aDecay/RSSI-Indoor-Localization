@@ -2,6 +2,7 @@ package com.conviot.rssiindoorlocalization
 
 import LocalizationViewModel
 import android.Manifest
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.drawable.Drawable
@@ -11,6 +12,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.util.Log
 import android.widget.RelativeLayout
 import androidx.activity.ComponentActivity
@@ -66,10 +68,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import android.provider.MediaStore
 import coil3.compose.AsyncImage
+import com.conviot.rssiindoorlocalization.manager.NetworkManager
 import com.conviot.rssiindoorlocalization.manager.Vector3D
 import com.conviot.rssiindoorlocalization.manager.computeStepTimeStamp
 import com.conviot.rssiindoorlocalization.manager.estimateTurningAngle
+import com.conviot.rssiindoorlocalization.manager.sendUdpMessage
 import com.conviot.rssiindoorlocalization.ui.theme.RSSIIndoorLocalizationTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -78,9 +83,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.tensorflow.lite.Delegate
 import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.flex.FlexDelegate
 import java.io.BufferedReader
 import java.io.File
+import java.io.FileWriter
+import java.io.IOException
 import java.io.InputStreamReader
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -113,6 +122,8 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
     private var accelerationThreshold = 0.1f
     private var weinbergGain = 0.65f
     private var frequency = 100.0f
+
+    private var wifiListTime = mutableListOf<FloatArray>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -254,6 +265,33 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
 
         // Activity가 Stop되면, Coroutine 종료
         localizationJob?.cancel()
+        deadReckoningJob?.cancel()
+
+        // 파일 경로 및 이름 설정
+        val fileName = "localization_data.csv"
+        val resolver = applicationContext.contentResolver
+
+        // ContentValues 설정
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS) // Download 폴더에 저장
+        }
+
+        // 파일 생성
+        val uri: Uri? = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+
+        if (uri != null) {
+            resolver.openOutputStream(uri)?.use { outputStream ->
+                outputStream.writer().use { writer ->
+                    writer.append("x,y,rad\n") // 헤더 작성
+                    localizationViewModel.DRResult.forEach { (x, y, rad) ->
+                        writer.append("$x,$y,$rad\n") // 데이터 작성
+                    }
+                }
+                outputStream.flush()
+            }
+        }
     }
 
     /** CSV 파일에서 학습에 사용된 BSSID 리스트를 반환 */
@@ -311,7 +349,8 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
     /** TFLite 모델 로드 후 반환 */
     suspend fun loadModel(context: Context): Interpreter = withContext(Dispatchers.IO) {
         // 파일 및 Context
-        val modelPath = "model.tflite"
+        // val modelPath = "model.tflite"
+        val modelPath = "lstm.tflite"
         val assetManager = context.assets
 
         // 모델 파일 읽기
@@ -326,8 +365,15 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
             rewind() // ByteBuffer의 위치를 0으로 초기화
         }
 
+        // FlexDelegate를 사용하여 모델 로드
+        val options = Interpreter.Options()
+
+// FlexDelegate 추가
+        val delegate: Delegate = FlexDelegate()
+        options.addDelegate(delegate)
+
         // Interpreter 생성
-        Interpreter(byteBuffer)
+        Interpreter(byteBuffer, options)
     }
 
     /** TFLite 모델 실행 */
@@ -351,14 +397,35 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
         Log.d("RunModel_Input", Arrays.toString(inputArray))
 
         // 출력 크기 설정 (예: [[x, y]])
-        val outputArray = Array(1) { FloatArray(2) }
+        //val outputArray = Array(1) { FloatArray(2) }
 
         // 모델 실행
-        interpreter.run(inputArray, outputArray)
+        //interpreter.run(inputArray, outputArray)
 
         // 결과 반환
-        Log.d("RunModel_Output", "X: ${outputArray[0][0]}, Y: ${outputArray[0][1]}")
-        Pair(outputArray[0][0], outputArray[0][1])
+        //Log.d("RunModel_Output", "X: ${outputArray[0][0]}, Y: ${outputArray[0][1]}")
+        //Pair(outputArray[0][0], outputArray[0][1])
+
+        val size = wifiListTime.size
+        if (size == 0 || !wifiListTime[size - 1].contentEquals(inputArray)) {
+            wifiListTime.add(inputArray.copyOf())
+            if (size >= 3)
+                wifiListTime.removeAt(0)
+        }
+
+        // 출력 크기 설정 (예: [[x, y]])
+        val outputArray = Array(1) { FloatArray(2) }
+
+        if (wifiListTime.size == 3) {
+            // 모델 실행
+            interpreter.run(Array(1) {wifiListTime.toTypedArray()}, outputArray)
+
+            // 결과 반환
+            Log.d("RunModel_Output", "X: ${outputArray[0][0]}, Y: ${outputArray[0][1]}")
+            Pair(outputArray[0][0], outputArray[0][1])
+        } else {
+            Pair(-1.0f, -1.0f)
+        }
     }
 
     /** RSSI 데이터를 통해 사용자의 위치를 확인 */

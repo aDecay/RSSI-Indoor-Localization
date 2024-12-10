@@ -79,6 +79,7 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     implementation(libs.tensorflow.lite)
+    implementation(libs.tensorflow.lite.select.tf.ops)
     implementation(libs.signal.jdsp) {
         exclude("org.apache.maven.surefire", "common-java")
         exclude("org.apache.maven.surefire", "surefire-api")

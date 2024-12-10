@@ -9,6 +9,10 @@ import kotlin.math.sqrt
 
 /** Localization 로직에서 변수 저장을 담당하는 ViewModel */
 class LocalizationViewModel : ViewModel() {
+    // (x,y,radian)
+    private val _DRResult = mutableListOf<Triple<Float, Float, Float>>()
+    val DRResult: MutableList<Triple<Float, Float, Float>> get() = _DRResult
+
     // X
     private val _localizationX = mutableFloatStateOf(0.25f)
     val localizationX: State<Float> get() = _localizationX
@@ -57,6 +61,10 @@ class LocalizationViewModel : ViewModel() {
     val accData = mutableListOf<Vector3D>()
     val gyroData = mutableListOf<Vector3D>()
     val magData = mutableListOf<Vector3D>()
+
+    fun appendDRResult(x: Float, y: Float, radian: Float) {
+        _DRResult.add(Triple(x, y, radian))
+    }
 
     /** 사용자의 위치를 업데이트 */
     fun updateLocalization(x: Float, y: Float) {
