@@ -606,8 +606,8 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                 .graphicsLayer(
                     scaleX = scale,
                     scaleY = scale,
-                    translationX = offset.x,
-                    translationY = offset.y,
+                    translationX = offset.x * scale,
+                    translationY = offset.y * scale,
                 )
                 .transformable(state = state)
                 .background(Color.White)
