@@ -1,6 +1,7 @@
 import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import com.conviot.rssiindoorlocalization.manager.Vector3D
@@ -36,6 +37,12 @@ class LocalizationViewModel : ViewModel() {
     fun setIsFollowing(isFollowing: Boolean) {
         _isFollowing.value = isFollowing
     }
+
+    // Server
+    private val _serverAddress = mutableStateOf("")
+    val serverAddress: State<String> get() = _serverAddress
+    private val _serverPort = mutableIntStateOf(0)
+    val serverPort: State<Int> get() = _serverPort
 
     // 랜드마크 정보
     class Landmark(var x: Float, var y: Float, var radius: Float, var name: String) {}
@@ -111,5 +118,10 @@ class LocalizationViewModel : ViewModel() {
     fun addOrientation(radian: Float) {
         _orientation.value += radian
         _orientation.value %= 2 * Math.PI.toFloat()
+    }
+
+    fun setServerInfo(address: String, port: Int) {
+        _serverAddress.value = address
+        _serverPort.value = port
     }
 }

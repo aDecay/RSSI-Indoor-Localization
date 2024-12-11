@@ -80,6 +80,7 @@ import com.conviot.rssiindoorlocalization.datastore.UserPreferences
 import com.conviot.rssiindoorlocalization.manager.Vector3D
 import com.conviot.rssiindoorlocalization.manager.computeStepTimeStamp
 import com.conviot.rssiindoorlocalization.manager.estimateTurningAngle
+import com.conviot.rssiindoorlocalization.manager.sendUdpEnd
 import com.conviot.rssiindoorlocalization.manager.sendUdpInitialState
 import com.conviot.rssiindoorlocalization.manager.sendUdpLocalization
 import com.conviot.rssiindoorlocalization.ui.theme.RSSIIndoorLocalizationTheme
@@ -206,20 +207,19 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                 ref.port
             }.first()
 
-            withContext(Dispatchers.Main) {
-                var result = false
+            localizationViewModel.setServerInfo(serverAddr, serverPort.toInt())
+            localizationViewModel.updateLocalization(initX, initY, initOri)
 
-                localizationViewModel.updateLocalization(initX, initY, initOri)
+            var result = false
 
-                withContext(Dispatchers.IO) {
-                    result = sendUdpInitialState("$initX,$initY,$initOri", serverAddr, serverPort.toInt())
-                }
+            withContext(Dispatchers.IO) {
+                result = sendUdpInitialState("$initX,$initY,$initOri", serverAddr, serverPort.toInt())
+            }
 
-                if (result) {
-                    Toast.makeText(this@LocalizationActivity, "서버 초기화 완료", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this@LocalizationActivity, "서버 초기화 실패 다시 시도해주세요", Toast.LENGTH_SHORT).show()
-                }
+            if (result) {
+                Toast.makeText(this@LocalizationActivity, "서버 초기화 완료", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this@LocalizationActivity, "서버 초기화 실패 다시 시도해주세요", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -247,26 +247,19 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
     override fun onStart() {
         super.onStart()
 
-        // TODO 3초마다 WIFI + DR 통합
-        // Activity가 Create된 후, Start되면 Coroutine 시작
-//        localizationJob = CoroutineScope(Dispatchers.Main).launch {
-//            while (isActive) {
-//                // Localization 실행
-//                localization()
-//
-//                // 일정 주기마다 반복
-//                delay(localizationDelayMs)
-//            }
-//        }
+        // RSSI-Based
+        localizationJob = CoroutineScope(Dispatchers.Main).launch {
+            while (isActive) {
+                // Localization 실행
+                localization()
 
+                // 일정 주기마다 반복
+                delay(localizationDelayMs)
+            }
+        }
+
+        // Dead Reckoning
         lifecycleScope.launch {
-            val serverAddr = dataStore.data.map { ref ->
-                ref.server
-            }.first()
-            val serverPort = dataStore.data.map { ref ->
-                ref.port
-            }.first()
-
             while (isActive) {
                 // Delay
                 delay(deadReckoningDelayMs)
@@ -291,23 +284,21 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                     }
 
                     // Transmit & Update
-                    val result = sendUdpLocalization(sb.toString(), serverAddr, serverPort.toInt())
+                    val result = sendUdpLocalization(sb.toString(), localizationViewModel.serverAddress.value, localizationViewModel.serverPort.value)
                     if (result.isStepped) {
-//                        withContext(Dispatchers.Main) {
-                            localizationViewModel.updateLocalization(
-                                result.x,
-                                result.y,
-                                result.radian
-                            )
-                            localizationViewModel.accData.clear()
-                            localizationViewModel.gyroData.clear()
-                            localizationViewModel.magData.clear()
+                        localizationViewModel.updateLocalization(
+                            result.x,
+                            result.y,
+                            result.radian
+                        )
+                        localizationViewModel.accData.clear()
+                        localizationViewModel.gyroData.clear()
+                        localizationViewModel.magData.clear()
 
-                            Log.d(
-                                "TestLocalization",
-                                "X: ${localizationViewModel.localizationX}, Y: ${localizationViewModel.localizationY}"
-                            )
-//                        }
+                        Log.d(
+                            "TestLocalization",
+                            "X: ${localizationViewModel.localizationX}, Y: ${localizationViewModel.localizationY}"
+                        )
                     } else {
                         // No Step Dectected
                     }
@@ -330,6 +321,18 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
 
         // Activity가 Stop되면, Coroutine 종료
         localizationJob?.cancel()
+
+        lifecycleScope.launch {
+            var result = false
+            withContext(Dispatchers.IO) {
+                result = sendUdpEnd("end", localizationViewModel.serverAddress.value, localizationViewModel.serverPort.value)
+            }
+            if (result) {
+                Toast.makeText(this@LocalizationActivity, "서버에 파일이 저장되었습니다.", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this@LocalizationActivity, "서버에 파일 종료 실패", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     /** CSV 파일에서 학습에 사용된 BSSID 리스트를 반환 */

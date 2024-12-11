@@ -98,7 +98,6 @@ fun sendUdpInitialState(message: String, ipAddress: String, port: Int): Boolean 
         val receivePacket = DatagramPacket(receiveData, receiveData.size)
         socket.receive(receivePacket)
 
-        val gson = Gson()
         val receivedString = String(receivePacket.data, 0, receivePacket.length)
         Log.d("sendUdpInitialState", "ReceivedPacket: ${receivedString}")
         receivedMessage = receivedString == "true"
@@ -108,6 +107,48 @@ fun sendUdpInitialState(message: String, ipAddress: String, port: Int): Boolean 
     } catch (e: Exception) {
         e.printStackTrace()
         Log.e("sendUdpInitialState", "Error in UDP communication")
+    }
+    return receivedMessage
+}
+
+fun sendUdpEnd(message: String, ipAddress: String, port: Int): Boolean {
+    var receivedMessage: Boolean = false
+    val identifier = "end"
+
+    try {
+        // Send
+        val socket = DatagramSocket()
+        val sendData = message.toByteArray()
+        val maxChunkSize = 1024 - headerSizeMax// Adjust based on your network MTU
+        val chunks = sendData.toList().chunked(maxChunkSize)
+
+        for (i in chunks.indices) {
+            var chunk = chunks[i]
+            val header = StringBuilder()
+                .append(i + 1).append(headerDelimiter)
+                .append(chunks.size).append(headerDelimiter)
+                .append(identifier).append(headerDelimiter)
+            chunk = header.toString().toByteArray().toList() + chunk.toByteArray().toList()
+            val sendPacket = DatagramPacket(chunk.toByteArray(), chunk.size, InetAddress.getByName(ipAddress), port)
+            socket.send(sendPacket)
+        }
+
+        Log.d("sendUdpEnd", "Packet sent to: $ipAddress:$port")
+
+        // Receive
+        val receiveData = ByteArray(1024)
+        val receivePacket = DatagramPacket(receiveData, receiveData.size)
+        socket.receive(receivePacket)
+
+        val receivedString = String(receivePacket.data, 0, receivePacket.length)
+        Log.d("sendUdpEnd", "ReceivedPacket: ${receivedString}")
+        receivedMessage = receivedString == "true"
+
+        Log.d("sendUdpEnd", "ReceivedMessage: $receivedMessage")
+        socket.close()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        Log.e("sendUdpEnd", "Error in UDP communication")
     }
     return receivedMessage
 }
