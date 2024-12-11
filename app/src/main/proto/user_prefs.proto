@@ -7,4 +7,7 @@ message UserPreferences {
   repeated string keywords = 1;
   string server = 2;
   string port = 3;
+  float initX = 4;
+  float initY = 5;
+  float initOri = 6;
 }

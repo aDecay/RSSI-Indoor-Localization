@@ -23,21 +23,32 @@ data class LocalizationResponse(
     val radian: Float
 )
 
-fun sendUdpMessage(message: String, ipAddress: String, port: Int): LocalizationResponse {
+const val headerDelimiter = "/"
+const val headerSizeMax = 20
+
+fun sendUdpLocalization(message: String, ipAddress: String, port: Int): LocalizationResponse {
     var receivedMessage: LocalizationResponse = LocalizationResponse(false, 0f, 0f, 0f)
+    val identifier = "locate"
+
     try {
         // Send
         val socket = DatagramSocket()
         val sendData = message.toByteArray()
-        val maxChunkSize = 1024 // Adjust based on your network MTU
+        val maxChunkSize = 1024 - headerSizeMax// Adjust based on your network MTU
         val chunks = sendData.toList().chunked(maxChunkSize)
 
-        for (chunk in chunks) {
+        for (i in chunks.indices) {
+            var chunk = chunks[i]
+            val header = StringBuilder()
+                .append(i + 1).append(headerDelimiter)
+                .append(chunks.size).append(headerDelimiter)
+                .append(identifier).append(headerDelimiter)
+            chunk = header.toString().toByteArray().toList() + chunk.toByteArray().toList()
             val sendPacket = DatagramPacket(chunk.toByteArray(), chunk.size, InetAddress.getByName(ipAddress), port)
             socket.send(sendPacket)
         }
 
-        Log.d("UDP", "Packet sent to: $ipAddress:$port")
+        Log.d("sendUdpLocalization", "Packet sent to: $ipAddress:$port")
 
         // Receive
         val receiveData = ByteArray(1024)
@@ -46,14 +57,57 @@ fun sendUdpMessage(message: String, ipAddress: String, port: Int): LocalizationR
 
         val gson = Gson()
         val receivedString = String(receivePacket.data, 0, receivePacket.length)
-        Log.d("UDP", "ReceivedPacket: ${receivedString}")
+        Log.d("sendUdpLocalization", "ReceivedPacket: ${receivedString}")
         receivedMessage = gson.fromJson(receivedString, LocalizationResponse::class.java)
 
-        Log.d("UDP", "ReceivedMessage: $receivedMessage")
+        Log.d("sendUdpLocalization", "ReceivedMessage: $receivedMessage")
         socket.close()
     } catch (e: Exception) {
         e.printStackTrace()
-        Log.e("UDP", "Error in UDP communication")
+        Log.e("sendUdpLocalization", "Error in UDP communication")
+    }
+    return receivedMessage
+}
+
+fun sendUdpInitialState(message: String, ipAddress: String, port: Int): Boolean {
+    var receivedMessage: Boolean = false
+    val identifier = "start"
+
+    try {
+        // Send
+        val socket = DatagramSocket()
+        val sendData = message.toByteArray()
+        val maxChunkSize = 1024 - headerSizeMax// Adjust based on your network MTU
+        val chunks = sendData.toList().chunked(maxChunkSize)
+
+        for (i in chunks.indices) {
+            var chunk = chunks[i]
+            val header = StringBuilder()
+                .append(i + 1).append(headerDelimiter)
+                .append(chunks.size).append(headerDelimiter)
+                .append(identifier).append(headerDelimiter)
+            chunk = header.toString().toByteArray().toList() + chunk.toByteArray().toList()
+            val sendPacket = DatagramPacket(chunk.toByteArray(), chunk.size, InetAddress.getByName(ipAddress), port)
+            socket.send(sendPacket)
+        }
+
+        Log.d("sendUdpInitialState", "Packet sent to: $ipAddress:$port")
+
+        // Receive
+        val receiveData = ByteArray(1024)
+        val receivePacket = DatagramPacket(receiveData, receiveData.size)
+        socket.receive(receivePacket)
+
+        val gson = Gson()
+        val receivedString = String(receivePacket.data, 0, receivePacket.length)
+        Log.d("sendUdpInitialState", "ReceivedPacket: ${receivedString}")
+        receivedMessage = receivedString == "true"
+
+        Log.d("sendUdpInitialState", "ReceivedMessage: $receivedMessage")
+        socket.close()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        Log.e("sendUdpInitialState", "Error in UDP communication")
     }
     return receivedMessage
 }

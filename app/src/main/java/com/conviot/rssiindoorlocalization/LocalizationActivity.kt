@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import android.provider.MediaStore
+import android.widget.Toast
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.datastore.core.DataStore
 import androidx.datastore.dataStore
@@ -79,7 +80,8 @@ import com.conviot.rssiindoorlocalization.datastore.UserPreferences
 import com.conviot.rssiindoorlocalization.manager.Vector3D
 import com.conviot.rssiindoorlocalization.manager.computeStepTimeStamp
 import com.conviot.rssiindoorlocalization.manager.estimateTurningAngle
-import com.conviot.rssiindoorlocalization.manager.sendUdpMessage
+import com.conviot.rssiindoorlocalization.manager.sendUdpInitialState
+import com.conviot.rssiindoorlocalization.manager.sendUdpLocalization
 import com.conviot.rssiindoorlocalization.ui.theme.RSSIIndoorLocalizationTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -123,7 +125,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
     // Localization 설정
     private var isTest: Boolean = false // 테스트 여부 (true면, 특정 record_id 기준으로 실행)
     private val localizationDelayMs: Long = 3000 // localization 간격 (ms)
-    private val deadReckoningDelayMs: Long = 1000
+    private val deadReckoningDelayMs: Long = 300
 
     // Sensor
     private lateinit var sensorManager: SensorManager
@@ -187,6 +189,40 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
         sensorManager.registerListener(this, gyroSensor, samplingPeriodUs)
         sensorManager.registerListener(this, magSensor, samplingPeriodUs)
 
+        lifecycleScope.launch {
+            val initX = dataStore.data.map { ref ->
+                ref.initX
+            }.first()
+            val initY = dataStore.data.map { ref ->
+                ref.initY
+            }.first()
+            val initOri = dataStore.data.map { ref ->
+                ref.initOri
+            }.first()
+            val serverAddr = dataStore.data.map { ref ->
+                ref.server
+            }.first()
+            val serverPort = dataStore.data.map { ref ->
+                ref.port
+            }.first()
+
+            withContext(Dispatchers.Main) {
+                var result = false
+
+                localizationViewModel.updateLocalization(initX, initY, initOri)
+
+                withContext(Dispatchers.IO) {
+                    result = sendUdpInitialState("$initX,$initY,$initOri", serverAddr, serverPort.toInt())
+                }
+
+                if (result) {
+                    Toast.makeText(this@LocalizationActivity, "서버 초기화 완료", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@LocalizationActivity, "서버 초기화 실패 다시 시도해주세요", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
         enableEdgeToEdge()
         setContent {
             RSSIIndoorLocalizationTheme {
@@ -232,6 +268,8 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
             }.first()
 
             while (isActive) {
+                // Delay
+                delay(deadReckoningDelayMs)
                 withContext(Dispatchers.IO) {
                     val accData = localizationViewModel.accData
                     val gyroData = localizationViewModel.gyroData
@@ -253,9 +291,9 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                     }
 
                     // Transmit & Update
-                    val result = sendUdpMessage(sb.toString(), serverAddr, serverPort.toInt())
+                    val result = sendUdpLocalization(sb.toString(), serverAddr, serverPort.toInt())
                     if (result.isStepped) {
-                        withContext(Dispatchers.Main) {
+//                        withContext(Dispatchers.Main) {
                             localizationViewModel.updateLocalization(
                                 result.x,
                                 result.y,
@@ -269,13 +307,10 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                                 "TestLocalization",
                                 "X: ${localizationViewModel.localizationX}, Y: ${localizationViewModel.localizationY}"
                             )
-                        }
+//                        }
                     } else {
                         // No Step Dectected
                     }
-
-                    // Delay
-                    delay(deadReckoningDelayMs)
                 }
             }
         }
@@ -295,32 +330,6 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
 
         // Activity가 Stop되면, Coroutine 종료
         localizationJob?.cancel()
-
-        // 파일 경로 및 이름 설정
-        val fileName = "localization_data.csv"
-        val resolver = applicationContext.contentResolver
-
-        // ContentValues 설정
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-            put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS) // Download 폴더에 저장
-        }
-
-        // 파일 생성
-        val uri: Uri? = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-
-        if (uri != null) {
-            resolver.openOutputStream(uri)?.use { outputStream ->
-                outputStream.writer().use { writer ->
-                    writer.append("x,y,rad\n") // 헤더 작성
-                    localizationViewModel.DRResult.forEach { (x, y, rad) ->
-                        writer.append("$x,$y,$rad\n") // 데이터 작성
-                    }
-                }
-                outputStream.flush()
-            }
-        }
     }
 
     /** CSV 파일에서 학습에 사용된 BSSID 리스트를 반환 */
