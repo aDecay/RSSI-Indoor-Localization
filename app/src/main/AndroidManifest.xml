@@ -37,6 +37,7 @@
         <activity android:name=".NetworkSettingActivity" />
         <activity android:name=".KeywordSettingActivity" />
         <activity android:name=".LocationSettingActivity" />
+        <activity android:name=".MethodSettingActivity" />
         <activity android:name=".DataCollectActivity" />
         <activity android:name=".LocationDataShowActivity" />
         <activity android:name=".LocalizationActivity" />

@@ -77,12 +77,14 @@ import androidx.lifecycle.lifecycleScope
 import coil3.compose.AsyncImage
 import com.conviot.rssiindoorlocalization.data.UserPreferencesSerializer
 import com.conviot.rssiindoorlocalization.datastore.UserPreferences
+import com.conviot.rssiindoorlocalization.manager.LocalizationResponse
 import com.conviot.rssiindoorlocalization.manager.Vector3D
 import com.conviot.rssiindoorlocalization.manager.computeStepTimeStamp
 import com.conviot.rssiindoorlocalization.manager.estimateTurningAngle
 import com.conviot.rssiindoorlocalization.manager.sendUdpEnd
 import com.conviot.rssiindoorlocalization.manager.sendUdpInitialState
 import com.conviot.rssiindoorlocalization.manager.sendUdpLocalization
+import com.conviot.rssiindoorlocalization.manager.sendUdpUpdateState
 import com.conviot.rssiindoorlocalization.ui.theme.RSSIIndoorLocalizationTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -206,20 +208,32 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
             val serverPort = dataStore.data.map { ref ->
                 ref.port
             }.first()
+            val deadReckoning = dataStore.data.map { ref ->
+                ref.deadReckoning
+            }.first()
+            val WiFi = dataStore.data.map { ref ->
+                ref.wiFi
+            }.first()
+
+            if (!deadReckoning && !WiFi) {
+                Toast.makeText(applicationContext, "위치 추정 방식 설정을 확인해주세요", Toast.LENGTH_SHORT).show()
+                this@LocalizationActivity.finish()
+            }
 
             localizationViewModel.setServerInfo(serverAddr, serverPort.toInt())
             localizationViewModel.updateLocalization(initX, initY, initOri)
+            localizationViewModel.setLocalizationMethod(deadReckoning, WiFi)
 
             var result = false
 
             withContext(Dispatchers.IO) {
-                result = sendUdpInitialState("$initX,$initY,$initOri", serverAddr, serverPort.toInt())
+                result = sendUdpInitialState(initX, initY, initOri, serverAddr, serverPort.toInt())
             }
 
             if (result) {
-                Toast.makeText(this@LocalizationActivity, "서버 초기화 완료", Toast.LENGTH_SHORT).show()
+                Toast.makeText(applicationContext, "서버 초기화 완료", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this@LocalizationActivity, "서버 초기화 실패 다시 시도해주세요", Toast.LENGTH_SHORT).show()
+                Toast.makeText(applicationContext, "서버 초기화 실패 다시 시도해주세요", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -248,59 +262,78 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
         super.onStart()
 
         // RSSI-Based
-        localizationJob = CoroutineScope(Dispatchers.Main).launch {
-            while (isActive) {
-                // Localization 실행
-                localization()
+        if (localizationViewModel.isWiFi.value) {
+            localizationJob = CoroutineScope(Dispatchers.Main).launch {
+                while (isActive) {
+                    // Localization 실행
+                    localization()
 
-                // 일정 주기마다 반복
-                delay(localizationDelayMs)
+                    // 일정 주기마다 반복
+                    delay(localizationDelayMs)
+                }
             }
         }
 
         // Dead Reckoning
-        lifecycleScope.launch {
-            while (isActive) {
-                // Delay
-                delay(deadReckoningDelayMs)
-                withContext(Dispatchers.IO) {
-                    val accData = localizationViewModel.accData
-                    val gyroData = localizationViewModel.gyroData
-                    val magData = localizationViewModel.magData
+        if (localizationViewModel.isDeadReckoning.value) {
+            lifecycleScope.launch {
+                while (isActive) {
+                    // Delay
+                    var result: LocalizationResponse
 
-                    // CSV
-                    val sb = StringBuilder()
-                    sb.append("acc_x,acc_y,acc_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z\n")
+                    delay(deadReckoningDelayMs)
+                    withContext(Dispatchers.IO) {
+                        val accData = localizationViewModel.accData
+                        val gyroData = localizationViewModel.gyroData
+                        val magData = localizationViewModel.magData
 
-                    val minSize = minOf(accData.size, gyroData.size, magData.size)
-                    for (i in 0 until minSize) {
-                        val acc = accData[i]
-                        val gyro = gyroData[i]
-                        val mag = magData[i]
+                        // CSV
+                        val sb = StringBuilder()
+                        sb.append("acc_x,acc_y,acc_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z\n")
 
-                        sb.append("${acc.x},${acc.y},${acc.z},")
-                        sb.append("${gyro.x},${gyro.y},${gyro.z},")
-                        sb.append("${mag.x},${mag.y},${mag.z}\n")
+                        val minSize = minOf(accData.size, gyroData.size, magData.size)
+                        for (i in 0 until minSize) {
+                            val acc = accData[i]
+                            val gyro = gyroData[i]
+                            val mag = magData[i]
+
+                            sb.append("${acc.x},${acc.y},${acc.z},")
+                            sb.append("${gyro.x},${gyro.y},${gyro.z},")
+                            sb.append("${mag.x},${mag.y},${mag.z}\n")
+                        }
+
+                        // Transmit & Update
+                        result = sendUdpLocalization(
+                            sb.toString(),
+                            localizationViewModel.serverAddress.value,
+                            localizationViewModel.serverPort.value
+                        )
+
+                        if (result.isStepped) {
+                            localizationViewModel.updateLocalization(
+                                result.x,
+                                result.y,
+                                result.radian
+                            )
+                            localizationViewModel.accData.clear()
+                            localizationViewModel.gyroData.clear()
+                            localizationViewModel.magData.clear()
+
+                            Log.d(
+                                "TestLocalization",
+                                "X: ${localizationViewModel.localizationX}, Y: ${localizationViewModel.localizationY}"
+                            )
+                        } else {
+                            // No Step Dectected
+                        }
                     }
 
-                    // Transmit & Update
-                    val result = sendUdpLocalization(sb.toString(), localizationViewModel.serverAddress.value, localizationViewModel.serverPort.value)
-                    if (result.isStepped) {
-                        localizationViewModel.updateLocalization(
-                            result.x,
-                            result.y,
-                            result.radian
-                        )
-                        localizationViewModel.accData.clear()
-                        localizationViewModel.gyroData.clear()
-                        localizationViewModel.magData.clear()
-
-                        Log.d(
-                            "TestLocalization",
-                            "X: ${localizationViewModel.localizationX}, Y: ${localizationViewModel.localizationY}"
-                        )
-                    } else {
-                        // No Step Dectected
+                    if (result.landmark != "None") {
+                        Toast.makeText(
+                            applicationContext,
+                            "${result.landmark}가 근처에 있습니다.",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             }
@@ -325,12 +358,12 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
         lifecycleScope.launch {
             var result = false
             withContext(Dispatchers.IO) {
-                result = sendUdpEnd("end", localizationViewModel.serverAddress.value, localizationViewModel.serverPort.value)
+                result = sendUdpEnd(localizationViewModel.serverAddress.value, localizationViewModel.serverPort.value)
             }
             if (result) {
-                Toast.makeText(this@LocalizationActivity, "서버에 파일이 저장되었습니다.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(applicationContext, "서버에 파일이 저장되었습니다.", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this@LocalizationActivity, "서버에 파일 종료 실패", Toast.LENGTH_SHORT).show()
+                Toast.makeText(applicationContext, "서버에 파일 종료 실패", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -504,16 +537,14 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                 // 모델 종료
                 interpreter.close()
 
-                // 사용자 위치 설정
-                localizationViewModel.updateLocalization(x, y)
+                if (wifiList.isNotEmpty()) {
+                    val WiFiOnly = localizationViewModel.isWiFi.value && !localizationViewModel.isDeadReckoning.value
 
-                // 랜드마크 확인
-                localizationViewModel.checkLandmark()
-
-                Log.d(
-                    "TestLocalization",
-                    "X: ${x}, Y: ${y}, Landmark Name: ${localizationViewModel.currentLandmark.value?.name}"
-                )
+                    withContext(Dispatchers.IO) {
+                        val response = sendUdpUpdateState(x, y, WiFiOnly, localizationViewModel.serverAddress.value, localizationViewModel.serverPort.value)
+                        localizationViewModel.updateLocalization(response.x, response.y, response.radian)
+                    }
+                }
             } catch (e: Exception) {
                 Log.e("TestLocalization", "Error during model execution: ${e.message}")
             }

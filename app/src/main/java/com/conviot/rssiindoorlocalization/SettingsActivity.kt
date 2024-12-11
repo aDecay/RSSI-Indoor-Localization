@@ -43,7 +43,8 @@ class SettingsActivity : ComponentActivity() {
             MenuData("지도 설정", MapSettingActivity::class.java),
             MenuData("키워드 설정", KeywordSettingActivity::class.java),
             MenuData("통신 설정", NetworkSettingActivity::class.java),
-            MenuData("초기 위치 설정", LocationSettingActivity::class.java)
+            MenuData("초기 위치 설정", LocationSettingActivity::class.java),
+            MenuData("위치 추정 방식 설정", MethodSettingActivity::class.java)
         )
     ) {
         Column(

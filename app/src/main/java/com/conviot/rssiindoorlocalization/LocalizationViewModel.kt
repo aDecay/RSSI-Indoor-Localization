@@ -34,15 +34,21 @@ class LocalizationViewModel : ViewModel() {
     private val _isFollowing = mutableStateOf(true)
     val isFollowing: State<Boolean> get() = _isFollowing
 
-    fun setIsFollowing(isFollowing: Boolean) {
-        _isFollowing.value = isFollowing
-    }
-
     // Server
     private val _serverAddress = mutableStateOf("")
     val serverAddress: State<String> get() = _serverAddress
     private val _serverPort = mutableIntStateOf(0)
     val serverPort: State<Int> get() = _serverPort
+
+    // Localization Method
+    private val _isDeadReckoning = mutableStateOf(true)
+    val isDeadReckoning: State<Boolean> get() = _isDeadReckoning
+    private val _isWiFi = mutableStateOf(true)
+    val isWiFi: State<Boolean> get() = _isWiFi
+
+    fun setIsFollowing(isFollowing: Boolean) {
+        _isFollowing.value = isFollowing
+    }
 
     // 랜드마크 정보
     class Landmark(var x: Float, var y: Float, var radius: Float, var name: String) {}
@@ -123,5 +129,10 @@ class LocalizationViewModel : ViewModel() {
     fun setServerInfo(address: String, port: Int) {
         _serverAddress.value = address
         _serverPort.value = port
+    }
+
+    fun setLocalizationMethod(deadReckoning: Boolean, WiFi: Boolean) {
+        _isDeadReckoning.value = deadReckoning
+        _isWiFi.value = WiFi
     }
 }

@@ -10,4 +10,6 @@ message UserPreferences {
   float initX = 4;
   float initY = 5;
   float initOri = 6;
+  bool deadReckoning = 7;
+  bool WiFi = 8;
 }
