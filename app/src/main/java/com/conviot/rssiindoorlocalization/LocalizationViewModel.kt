@@ -67,8 +67,8 @@ class LocalizationViewModel : ViewModel() {
     )
 
     // 사용자가 위치한 랜드마크
-    private val _currentLandmark = mutableStateOf<Landmark?>(null)
-    val currentLandmark: State<Landmark?> get() = _currentLandmark
+    private val _currentLandmark = mutableStateOf<String>("None")
+    val currentLandmark: State<String> get() = _currentLandmark
 
     // IMU Raw Data
     val accData = mutableListOf<Vector3D>()
@@ -116,7 +116,7 @@ class LocalizationViewModel : ViewModel() {
             )
 
             if (distance <= landmark.radius) {
-                _currentLandmark.value = landmark
+                _currentLandmark.value = landmark.name
             }
         }
     }
@@ -134,5 +134,9 @@ class LocalizationViewModel : ViewModel() {
     fun setLocalizationMethod(deadReckoning: Boolean, WiFi: Boolean) {
         _isDeadReckoning.value = deadReckoning
         _isWiFi.value = WiFi
+    }
+
+    fun setCurrentLandmark(landmark: String) {
+        _currentLandmark.value = landmark
     }
 }

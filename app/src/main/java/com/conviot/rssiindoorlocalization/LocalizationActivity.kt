@@ -70,6 +70,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import android.provider.MediaStore
 import android.widget.Toast
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.datastore.core.DataStore
 import androidx.datastore.dataStore
@@ -137,7 +140,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
     private lateinit var magSensor: Sensor
     private val samplingPeriodUs = 10000
 
-    //private var wifiListTime = mutableListOf<FloatArray>()
+    //prisvate var wifiListTime = mutableListOf<FloatArray>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -246,6 +249,22 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                     verticalArrangement = Arrangement.Center
                 ) {
                     DataCollector()
+                    FloatingActionButton(
+                        onClick = {
+                            Toast.makeText(applicationContext, "현재 근처에 ${localizationViewModel.currentLandmark.value}가 있습니다.", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .offset(y = 16.dp),
+                    ) {
+                        Text(
+                            text = localizationViewModel.currentLandmark.value,
+                            fontSize = 40.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .padding(16.dp)
+                        )
+                    }
                     FloatingActionButton (
                         onClick = { localizationViewModel.setIsFollowing(true) },
                         modifier = Modifier
@@ -253,6 +272,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                     ) {
                         Text(text = if (localizationViewModel.isFollowing.value) "고정 해제" else "화면 고정")
                     }
+
                 }
             }
         }
@@ -319,6 +339,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                             localizationViewModel.gyroData.clear()
                             localizationViewModel.magData.clear()
 
+                            localizationViewModel.setCurrentLandmark(result.landmark)
                             Log.d(
                                 "TestLocalization",
                                 "X: ${localizationViewModel.localizationX}, Y: ${localizationViewModel.localizationY}"
@@ -328,13 +349,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                         }
                     }
 
-                    if (result.landmark != "None") {
-                        Toast.makeText(
-                            applicationContext,
-                            "${result.landmark}가 근처에 있습니다.",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+
                 }
             }
         }
@@ -630,22 +645,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                 LocalizationTestUserPoint()
             }
         }
-        if (localizationViewModel.currentLandmark.value != null) {
-            Column(
-                verticalArrangement = Arrangement.Bottom,
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 60.dp)
-            ) {
-                // 랜드마크 이름 표시
-                Text(
-                    localizationViewModel.currentLandmark.value!!.name,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
+
     }
 
     /** Localization 후 사용자의 위치를 나타냄 */
