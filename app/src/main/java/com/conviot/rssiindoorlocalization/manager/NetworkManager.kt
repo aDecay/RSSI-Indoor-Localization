@@ -2,9 +2,9 @@ package com.conviot.rssiindoorlocalization.manager
 
 import android.util.Log
 import com.google.gson.Gson
-import java.net.DatagramPacket
-import java.net.DatagramSocket
-import java.net.InetAddress
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
 
 data class LocalizationResponse(
     val isStepped: Boolean,
@@ -20,180 +20,161 @@ data class UpdateResponse(
     val radian: Float
 )
 
-const val headerDelimiter = "/"
-const val headerSizeMax = 20
-const val payloadSplitter = ','
-
-/**
- * Dead Reckoning
- */
-fun sendUdpLocalization(message: String, ipAddress: String, port: Int): LocalizationResponse {
-    var receivedMessage: LocalizationResponse = LocalizationResponse(false, 0f, 0f, 0f, "None")
-    val identifier = "locate"
+fun sendHttpLocalization(message: String, serverUrl: String): LocalizationResponse {
+    var receivedMessage = LocalizationResponse(false, 0f, 0f, 0f, "None")
 
     try {
-        // Send
-        val socket = DatagramSocket()
-        val sendData = message.toByteArray()
-        val maxChunkSize = 1024 - headerSizeMax// Adjust based on your network MTU
-        val chunks = sendData.toList().chunked(maxChunkSize)
+        // HTTP 연결 설정
+        val url = URL("$serverUrl/locate")
+        val connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.setRequestProperty("Content-Type", "text/plain")
+        connection.doOutput = true
 
-        for (i in chunks.indices) {
-            var chunk = chunks[i]
-            val header = StringBuilder()
-                .append(i + 1).append(headerDelimiter)
-                .append(chunks.size).append(headerDelimiter)
-                .append(identifier).append(headerDelimiter)
-            chunk = header.toString().toByteArray().toList() + chunk.toByteArray().toList()
-            val sendPacket = DatagramPacket(chunk.toByteArray(), chunk.size, InetAddress.getByName(ipAddress), port)
-            socket.send(sendPacket)
+        // CSV 데이터 전송
+        val outputStream = OutputStreamWriter(connection.outputStream)
+        outputStream.write(message)
+        outputStream.flush()
+        outputStream.close()
+
+        // 응답 확인
+        val responseCode = connection.responseCode
+        Log.d("sendHttpLocalization", "Response Code: $responseCode")
+
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+            val responseStream = connection.inputStream.bufferedReader().use { it.readText() }
+            Log.d("sendHttpLocalization", "Response: $responseStream")
+
+            receivedMessage = Gson().fromJson(responseStream, LocalizationResponse::class.java)
+        } else {
+            Log.e("sendHttpLocalization", "Error: Response Code $responseCode")
         }
 
-        Log.d("sendUdpLocalization", "Packet sent to: $ipAddress:$port")
-
-        // Receive
-        val receiveData = ByteArray(1024)
-        val receivePacket = DatagramPacket(receiveData, receiveData.size)
-        socket.receive(receivePacket)
-
-        val gson = Gson()
-        val receivedString = String(receivePacket.data, 0, receivePacket.length)
-        Log.d("sendUdpLocalization", "ReceivedPacket: ${receivedString}")
-        receivedMessage = gson.fromJson(receivedString, LocalizationResponse::class.java)
-
-        Log.d("sendUdpLocalization", "ReceivedMessage: $receivedMessage")
-        socket.close()
+        connection.disconnect()
     } catch (e: Exception) {
         e.printStackTrace()
-        Log.e("sendUdpLocalization", "Error in UDP communication")
-    }
-    return receivedMessage
-}
-
-fun sendUdpUpdateState(x: Float, y: Float, WiFIOnly: Boolean, ipAddress: String, port: Int): UpdateResponse {
-    var receivedMessage: UpdateResponse = UpdateResponse(0f, 0f, 0f)
-    val identifier = "update"
-
-    try {
-        // Send
-        val socket = DatagramSocket()
-        val sendData = StringBuilder().append(x, payloadSplitter, y, payloadSplitter, WiFIOnly).toString().toByteArray()
-        val maxChunkSize = 1024 - headerSizeMax// Adjust based on your network MTU
-        val chunks = sendData.toList().chunked(maxChunkSize)
-
-        for (i in chunks.indices) {
-            var chunk = chunks[i]
-            val header = StringBuilder()
-                .append(i + 1).append(headerDelimiter)
-                .append(chunks.size).append(headerDelimiter)
-                .append(identifier).append(headerDelimiter)
-            chunk = header.toString().toByteArray().toList() + chunk.toByteArray().toList()
-            val sendPacket = DatagramPacket(chunk.toByteArray(), chunk.size, InetAddress.getByName(ipAddress), port)
-            socket.send(sendPacket)
-        }
-
-        Log.d("sendUdpUpdateState", "Packet sent to: $ipAddress:$port")
-
-        // Receive
-        val receiveData = ByteArray(1024)
-        val receivePacket = DatagramPacket(receiveData, receiveData.size)
-        socket.receive(receivePacket)
-
-        val gson = Gson()
-        val receivedString = String(receivePacket.data, 0, receivePacket.length)
-        Log.d("sendUdpUpdateState", "ReceivedPacket: ${receivedString}")
-        receivedMessage = gson.fromJson(receivedString, UpdateResponse::class.java)
-
-        Log.d("sendUdpUpdateState", "ReceivedMessage: $receivedMessage")
-        socket.close()
-    } catch (e: Exception) {
-        e.printStackTrace()
-        Log.e("sendUdpUpdateState", "Error in UDP communication")
+        Log.e("sendHttpLocalization", "Error in HTTP communication")
     }
 
     return receivedMessage
 }
 
-fun sendUdpInitialState(x: Float, y: Float, ori: Float, ipAddress: String, port: Int): Boolean {
-    var receivedMessage: Boolean = false
-    val identifier = "start"
+fun sendHttpUpdateState(x: Float, y: Float, WiFIOnly: Boolean, serverUrl: String): UpdateResponse {
+    var receivedMessage = UpdateResponse(0f, 0f, 0f)
 
     try {
-        // Send
-        val socket = DatagramSocket()
-        val sendData = StringBuilder().append(x, payloadSplitter, y, payloadSplitter, ori).toString().toByteArray()
-        val maxChunkSize = 1024 - headerSizeMax// Adjust based on your network MTU
-        val chunks = sendData.toList().chunked(maxChunkSize)
+        // HTTP 연결 설정
+        val url = URL("$serverUrl/update")
+        val connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.setRequestProperty("Content-Type", "text/plain")
+        connection.doOutput = true
 
-        for (i in chunks.indices) {
-            var chunk = chunks[i]
-            val header = StringBuilder()
-                .append(i + 1).append(headerDelimiter)
-                .append(chunks.size).append(headerDelimiter)
-                .append(identifier).append(headerDelimiter)
-            chunk = header.toString().toByteArray().toList() + chunk.toByteArray().toList()
-            val sendPacket = DatagramPacket(chunk.toByteArray(), chunk.size, InetAddress.getByName(ipAddress), port)
-            socket.send(sendPacket)
+        // CSV 데이터 전송
+        val message = "$x,$y,$WiFIOnly"
+        val outputStream = OutputStreamWriter(connection.outputStream)
+        outputStream.write(message)
+        outputStream.flush()
+        outputStream.close()
+
+        // 응답 확인
+        val responseCode = connection.responseCode
+        Log.d("sendHttpUpdateState", "Response Code: $responseCode")
+
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+            val responseStream = connection.inputStream.bufferedReader().use { it.readText() }
+            Log.d("sendHttpUpdateState", "Response: $responseStream")
+
+            receivedMessage = Gson().fromJson(responseStream, UpdateResponse::class.java)
+        } else {
+            Log.e("sendHttpUpdateState", "Error: Response Code $responseCode")
         }
 
-        Log.d("sendUdpInitialState", "Packet sent to: $ipAddress:$port")
-
-        // Receive
-        val receiveData = ByteArray(1024)
-        val receivePacket = DatagramPacket(receiveData, receiveData.size)
-        socket.receive(receivePacket)
-
-        val receivedString = String(receivePacket.data, 0, receivePacket.length)
-        Log.d("sendUdpInitialState", "ReceivedPacket: ${receivedString}")
-        receivedMessage = receivedString == "true"
-
-        Log.d("sendUdpInitialState", "ReceivedMessage: $receivedMessage")
-        socket.close()
+        connection.disconnect()
     } catch (e: Exception) {
         e.printStackTrace()
-        Log.e("sendUdpInitialState", "Error in UDP communication")
+        Log.e("sendHttpUpdateState", "Error in HTTP communication")
     }
+
     return receivedMessage
 }
 
-fun sendUdpEnd(ipAddress: String, port: Int): Boolean {
-    var receivedMessage: Boolean = false
-    val identifier = "end"
+fun sendHttpInitialState(x: Float, y: Float, ori: Float, serverUrl: String): Boolean {
+    var receivedMessage = false
 
     try {
-        // Send
-        val socket = DatagramSocket()
-        val sendData = identifier.toByteArray()
-        val maxChunkSize = 1024 - headerSizeMax// Adjust based on your network MTU
-        val chunks = sendData.toList().chunked(maxChunkSize)
+        // HTTP 연결 설정
+        val url = URL("$serverUrl/start")
+        val connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.setRequestProperty("Content-Type", "text/plain")
+        connection.doOutput = true
 
-        for (i in chunks.indices) {
-            var chunk = chunks[i]
-            val header = StringBuilder()
-                .append(i + 1).append(headerDelimiter)
-                .append(chunks.size).append(headerDelimiter)
-                .append(identifier).append(headerDelimiter)
-            chunk = header.toString().toByteArray().toList() + chunk.toByteArray().toList()
-            val sendPacket = DatagramPacket(chunk.toByteArray(), chunk.size, InetAddress.getByName(ipAddress), port)
-            socket.send(sendPacket)
+        // CSV 데이터 전송
+        val message = "$x,$y,$ori"
+        val outputStream = OutputStreamWriter(connection.outputStream)
+        outputStream.write(message)
+        outputStream.flush()
+        outputStream.close()
+
+        // 응답 확인
+        val responseCode = connection.responseCode
+        Log.d("sendHttpInitialState", "Response Code: $responseCode")
+
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+            val responseStream = connection.inputStream.bufferedReader().use { it.readText() }
+            Log.d("sendHttpInitialState", "Response: $responseStream")
+
+            receivedMessage = responseStream.toBoolean()
+        } else {
+            Log.e("sendHttpInitialState", "Error: Response Code $responseCode")
         }
 
-        Log.d("sendUdpEnd", "Packet sent to: $ipAddress:$port")
-
-        // Receive
-        val receiveData = ByteArray(1024)
-        val receivePacket = DatagramPacket(receiveData, receiveData.size)
-        socket.receive(receivePacket)
-
-        val receivedString = String(receivePacket.data, 0, receivePacket.length)
-        Log.d("sendUdpEnd", "ReceivedPacket: ${receivedString}")
-        receivedMessage = receivedString == "true"
-
-        Log.d("sendUdpEnd", "ReceivedMessage: $receivedMessage")
-        socket.close()
+        connection.disconnect()
     } catch (e: Exception) {
         e.printStackTrace()
-        Log.e("sendUdpEnd", "Error in UDP communication")
+        Log.e("sendHttpInitialState", "Error in HTTP communication")
     }
+
+    return receivedMessage
+}
+
+fun sendHttpEnd(serverUrl: String): Boolean {
+    var receivedMessage = false
+
+    try {
+        // HTTP 연결 설정
+        val url = URL("$serverUrl/end")
+        val connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.setRequestProperty("Content-Type", "text/plain")
+        connection.doOutput = true
+
+        // 텍스트 데이터 전송
+        val message = "end"
+        val outputStream = OutputStreamWriter(connection.outputStream)
+        outputStream.write(message)
+        outputStream.flush()
+        outputStream.close()
+
+        // 응답 확인
+        val responseCode = connection.responseCode
+        Log.d("sendHttpEnd", "Response Code: $responseCode")
+
+        if (responseCode == HttpURLConnection.HTTP_OK) {
+            val responseStream = connection.inputStream.bufferedReader().use { it.readText() }
+            Log.d("sendHttpEnd", "Response: $responseStream")
+
+            receivedMessage = responseStream.toBoolean()
+        } else {
+            Log.e("sendHttpEnd", "Error: Response Code $responseCode")
+        }
+
+        connection.disconnect()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        Log.e("sendHttpEnd", "Error in HTTP communication")
+    }
+
     return receivedMessage
 }

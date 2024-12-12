@@ -81,10 +81,10 @@ import com.conviot.rssiindoorlocalization.manager.LocalizationResponse
 import com.conviot.rssiindoorlocalization.manager.Vector3D
 import com.conviot.rssiindoorlocalization.manager.computeStepTimeStamp
 import com.conviot.rssiindoorlocalization.manager.estimateTurningAngle
-import com.conviot.rssiindoorlocalization.manager.sendUdpEnd
-import com.conviot.rssiindoorlocalization.manager.sendUdpInitialState
-import com.conviot.rssiindoorlocalization.manager.sendUdpLocalization
-import com.conviot.rssiindoorlocalization.manager.sendUdpUpdateState
+import com.conviot.rssiindoorlocalization.manager.sendHttpEnd
+import com.conviot.rssiindoorlocalization.manager.sendHttpInitialState
+import com.conviot.rssiindoorlocalization.manager.sendHttpLocalization
+import com.conviot.rssiindoorlocalization.manager.sendHttpUpdateState
 import com.conviot.rssiindoorlocalization.ui.theme.RSSIIndoorLocalizationTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -227,7 +227,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
             var result = false
 
             withContext(Dispatchers.IO) {
-                result = sendUdpInitialState(initX, initY, initOri, serverAddr, serverPort.toInt())
+                result = sendHttpInitialState(initX, initY, initOri, "http://${localizationViewModel.serverAddress.value}:${localizationViewModel.serverPort.value}")
             }
 
             if (result) {
@@ -301,12 +301,14 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                             sb.append("${gyro.x},${gyro.y},${gyro.z},")
                             sb.append("${mag.x},${mag.y},${mag.z}\n")
                         }
+                        localizationViewModel.accData.clear()
+                        localizationViewModel.gyroData.clear()
+                        localizationViewModel.magData.clear()
 
                         // Transmit & Update
-                        result = sendUdpLocalization(
+                        result = sendHttpLocalization(
                             sb.toString(),
-                            localizationViewModel.serverAddress.value,
-                            localizationViewModel.serverPort.value
+                            "http://${localizationViewModel.serverAddress.value}:${localizationViewModel.serverPort.value}"
                         )
 
                         if (result.isStepped) {
@@ -315,9 +317,6 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                                 result.y,
                                 result.radian
                             )
-                            localizationViewModel.accData.clear()
-                            localizationViewModel.gyroData.clear()
-                            localizationViewModel.magData.clear()
 
                             Log.d(
                                 "TestLocalization",
@@ -358,7 +357,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
         lifecycleScope.launch {
             var result = false
             withContext(Dispatchers.IO) {
-                result = sendUdpEnd(localizationViewModel.serverAddress.value, localizationViewModel.serverPort.value)
+                result = sendHttpEnd("http://${localizationViewModel.serverAddress.value}:${localizationViewModel.serverPort.value}")
             }
             if (result) {
                 Toast.makeText(applicationContext, "서버에 파일이 저장되었습니다.", Toast.LENGTH_SHORT).show()
@@ -541,7 +540,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                     val WiFiOnly = localizationViewModel.isWiFi.value && !localizationViewModel.isDeadReckoning.value
 
                     withContext(Dispatchers.IO) {
-                        val response = sendUdpUpdateState(x, y, WiFiOnly, localizationViewModel.serverAddress.value, localizationViewModel.serverPort.value)
+                        val response = sendHttpUpdateState(x, y, WiFiOnly, "http://${localizationViewModel.serverAddress.value}:${localizationViewModel.serverPort.value}")
                         localizationViewModel.updateLocalization(response.x, response.y, response.radian)
                     }
                 }
