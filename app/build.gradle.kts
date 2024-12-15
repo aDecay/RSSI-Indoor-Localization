@@ -14,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = "com.conviot.rssiindoorlocalization"
-        minSdk = 33
+        minSdk = 31
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -41,10 +41,18 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        // Exclude these files because they conflict with those imported from the jDSP package
+        resources.excludes.add("META-INF/*")
+    }
 }
 
 dependencies {
     implementation(libs.room.runtime)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.material)
+    implementation(libs.androidx.activity)
+    implementation(libs.androidx.constraintlayout)
     ksp(libs.androidx.room.compiler)
     annotationProcessor(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
@@ -69,6 +77,14 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    implementation(libs.tensorflow.lite)
+    implementation(libs.tensorflow.lite.select.tf.ops)
+    implementation(libs.signal.jdsp) {
+        exclude("org.apache.maven.surefire", "common-java")
+        exclude("org.apache.maven.surefire", "surefire-api")
+    }
+    implementation(libs.google.gson)
 }
 
 protobuf {
