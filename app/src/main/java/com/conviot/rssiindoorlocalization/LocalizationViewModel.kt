@@ -74,6 +74,7 @@ class LocalizationViewModel : ViewModel() {
     val accData = mutableListOf<Vector3D>()
     val gyroData = mutableListOf<Vector3D>()
     val magData = mutableListOf<Vector3D>()
+    val oriData = mutableListOf<Vector3D>()
 
     fun appendDRResult(x: Float, y: Float, radian: Float) {
         _DRResult.add(Triple(x, y, radian))

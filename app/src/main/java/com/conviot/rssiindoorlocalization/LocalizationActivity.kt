@@ -131,13 +131,14 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
     // Localization 설정
     private var isTest: Boolean = false // 테스트 여부 (true면, 특정 record_id 기준으로 실행)
     private val localizationDelayMs: Long = 3000 // localization 간격 (ms)
-    private val deadReckoningDelayMs: Long = 300
+    private val deadReckoningDelayMs: Long = 50
 
     // Sensor
     private lateinit var sensorManager: SensorManager
     private lateinit var accelSensor: Sensor
     private lateinit var gyroSensor: Sensor
     private lateinit var magSensor: Sensor
+    private lateinit var oriSensor: Sensor
     private val samplingPeriodUs = 10000
 
     //prisvate var wifiListTime = mutableListOf<FloatArray>()
@@ -191,9 +192,11 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
         accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)!!
         gyroSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)!!
         magSensor = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)!!
+        oriSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION)!!
         sensorManager.registerListener(this, accelSensor, samplingPeriodUs)
         sensorManager.registerListener(this, gyroSensor, samplingPeriodUs)
         sensorManager.registerListener(this, magSensor, samplingPeriodUs)
+        sensorManager.registerListener(this, oriSensor, samplingPeriodUs)
 
         lifecycleScope.launch {
             val initX = dataStore.data.map { ref ->
@@ -306,20 +309,22 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                         val accData = localizationViewModel.accData
                         val gyroData = localizationViewModel.gyroData
                         val magData = localizationViewModel.magData
+                        val oriData = localizationViewModel.oriData
 
                         // CSV
                         val sb = StringBuilder()
-                        sb.append("acc_x,acc_y,acc_z,gyro_x,gyro_y,gyro_z,mag_x,mag_y,mag_z\n")
+                        sb.append("acc_x,acc_y,acc_z,gyro_x,gyro_y,gyro_z,ori_x,ori_y,ori_z\n")
 
-                        val minSize = minOf(accData.size, gyroData.size, magData.size)
+                        val minSize = minOf(accData.size, gyroData.size, oriData.size)
+                        Log.d("minsize", "${accData.size}, ${gyroData.size}, ${oriData.size}")
                         for (i in 0 until minSize) {
                             val acc = accData[i]
                             val gyro = gyroData[i]
-                            val mag = magData[i]
+                            val ori = oriData[i]
 
                             sb.append("${acc.x},${acc.y},${acc.z},")
                             sb.append("${gyro.x},${gyro.y},${gyro.z},")
-                            sb.append("${mag.x},${mag.y},${mag.z}\n")
+                            sb.append("${ori.x},${ori.y},${ori.z}\n")
                         }
 
                         // Transmit & Update
@@ -337,7 +342,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
                             )
                             localizationViewModel.accData.clear()
                             localizationViewModel.gyroData.clear()
-                            localizationViewModel.magData.clear()
+                            localizationViewModel.oriData.clear()
 
                             localizationViewModel.setCurrentLandmark(result.landmark)
                             Log.d(
@@ -360,6 +365,7 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
         accelSensor.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST) }
         gyroSensor.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST) }
         magSensor.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST) }
+        oriSensor.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST) }
     }
 
     override fun onStop() {
@@ -708,6 +714,10 @@ class LocalizationActivity : ComponentActivity(), SensorEventListener {
             Sensor.TYPE_MAGNETIC_FIELD -> {
 //                Log.d("mag", "${event.values[0]}, ${event.values[1]}, ${event.values[2]}")
                 localizationViewModel.magData.add(Vector3D(event.values[0], event.values[1], event.values[2]))
+            }
+            Sensor.TYPE_ORIENTATION -> {
+                Log.d("ori", "${event.values[0]}, ${event.values[1]}, ${event.values[2]}")
+                localizationViewModel.oriData.add(Vector3D(event.values[0], event.values[1], event.values[2]))
             }
             else -> {
                 // DO NOTHING
